@@ -105,3 +105,39 @@ I tested the full system by publishing a test message to the **OrderTopic SNS to
 After publishing the message, I confirmed that it appeared in the OrderQueue.
 I then checked the Lambda logs to ensure that the order was processed correctly.
 Finally, I went to the DynamoDB Orders table and verified that the new order was stored as expected.
+## Visibility Timeout and Dead Letter Queue (DLQ) Explanation
+
+### Visibility Timeout
+
+I configured the **Visibility Timeout** for the SQS queue to manage message visibility during the Lambda processing. The Visibility Timeout ensures that once a message is being processed by Lambda, it is hidden from other consumers, preventing multiple Lambda executions from picking up and processing the same message. If Lambda fails to process the message within the visibility timeout, it becomes visible again in the queue for reprocessing.
+
+I set the Visibility Timeout to a value that aligns with the expected execution time of the Lambda function. This was crucial because if the function did not process the message in the allocated time, the message could be processed again by another instance of the Lambda function, which would lead to duplicated data or incorrect results being inserted into DynamoDB.
+
+This feature was extremely useful for my system because it prevents race conditions where multiple Lambda functions might try to process the same order data concurrently. If that happened, it could cause order duplication or inconsistent data in DynamoDB, which would be disastrous for the system's integrity. By using Visibility Timeout properly, I ensured that each message was processed exactly once and was not picked up by another Lambda function until the current one finished processing.
+
+The **Visibility Timeout** also helped optimize system resources by ensuring that once the message was locked by a Lambda function, no additional resources were unnecessarily allocated to retrying that message until the current process was completed.
+
+### Dead Letter Queue (DLQ)
+
+For the **Dead Letter Queue** (DLQ), I implemented it as part of the error-handling strategy for the SQS queue. A DLQ is useful for capturing and isolating messages that fail processing after multiple retry attempts. I set the **maxReceiveCount** for the main queue to 3, meaning that if a message fails to be processed three times, it gets automatically moved to the DLQ.
+
+This setup allowed me to ensure that any message that could not be processed by Lambda after several attempts wouldn't be lost or result in incomplete data being written to DynamoDB. Instead, the failed message would be isolated in the DLQ, where I could manually inspect the issue, analyze the reason for failure, and fix it without affecting the main order processing flow.
+
+The DLQ was extremely useful in my scenario because it helped me handle failure scenarios in a controlled and predictable manner. Without a DLQ, failed messages would be lost, which could lead to missing data in my database or orders being improperly processed. This would be unacceptable, especially in an e-commerce environment, where accuracy and reliability are critical.
+
+Using the DLQ allowed me to **isolate issues**, troubleshoot failures by examining the failed messages, and make necessary adjustments before retrying the messages. This ensured that messages would not keep failing in the main processing pipeline, allowing me to maintain a smooth operation in the system without data corruption.
+
+### How These Features Were Useful for My System
+
+- **Visibility Timeout**: 
+    - Prevents **duplicate processing** by ensuring that each message is processed by only one Lambda instance at a time.
+    - Protects the integrity of the DynamoDB data by avoiding **race conditions** and inconsistent data writes.
+    - Helps optimize **resource allocation** by ensuring that Lambda does not pick up the same message until the previous processing attempt is completed.
+
+- **Dead Letter Queue (DLQ)**: 
+    - Ensures that no message is lost if it fails to be processed after several retries.
+    - Provides a **clear error-handling process**, allowing me to inspect, troubleshoot, and fix issues related to specific messages.
+    - Protects the rest of the system from failure, preventing the Lambda function from continuously retrying problematic messages and **blocking the normal flow** of order processing.
+
+By implementing both **Visibility Timeout** and **DLQ**, I built a more **reliable and fault-tolerant system**. These features allowed the system to recover gracefully from failures, prevent data corruption, and ensure that no order data was lost during processing, which is especially important for high-value transactions like those in an e-commerce platform.
+
