@@ -105,6 +105,10 @@ I tested the full system by publishing a test message to the **OrderTopic SNS to
 After publishing the message, I confirmed that it appeared in the OrderQueue.
 I then checked the Lambda logs to ensure that the order was processed correctly.
 Finally, I went to the DynamoDB Orders table and verified that the new order was stored as expected.
+
+## Architecture Diagram
+![Architecture Diagram](./ArchDIagram.png)
+
 ## Visibility Timeout and Dead Letter Queue (DLQ) Explanation
 
 ### Visibility Timeout
